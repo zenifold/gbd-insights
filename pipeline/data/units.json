@@ -1,0 +1,12 @@
+{
+  "_comment": "Mass-unit -> kilograms multipliers. Units NOT listed here (e.g. case, each, can, block, bag, gal, dozen, bottle) are treated as 'mass unknown', and emissions for those line items fall back to the spend-based factor.",
+  "to_kg": {
+    "kg": 1.0, "kgs": 1.0, "kilogram": 1.0, "kilograms": 1.0,
+    "g": 0.001, "gram": 0.001, "grams": 0.001, "gm": 0.001,
+    "mg": 0.000001,
+    "lb": 0.45359237, "lbs": 0.45359237, "pound": 0.45359237, "pounds": 0.45359237, "#": 0.45359237,
+    "oz": 0.0283495231, "ounce": 0.0283495231, "ounces": 0.0283495231,
+    "ton": 907.18474, "tons": 907.18474,
+    "tonne": 1000.0, "tonnes": 1000.0, "t": 1000.0, "mt": 1000.0
+  }
+}

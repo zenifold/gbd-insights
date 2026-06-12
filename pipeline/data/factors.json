@@ -1,0 +1,25 @@
+{
+  "version": "placeholder-2026.06",
+  "_comment": "PLACEHOLDER emission factors — REPLACE before production use. 'co2e_per_kg' values are representative cradle-to-retail midpoints in kg CO2e per kg of food, drawn from Poore & Nemecek (2018, Science) supplementary data. 'co2e_per_usd' values are rough spend-based (EEIO-style) fallbacks in kg CO2e per USD, used only when mass cannot be derived. These are to be superseded by GBD's Research Director / Jackie Bertoldo factors and the additional impact metrics (land, water, animal lives, health).",
+  "default_co2e_per_usd": 0.5,
+  "categories": {
+    "beef":        {"co2e_per_kg": 60.0, "co2e_per_usd": 1.2},
+    "lamb":        {"co2e_per_kg": 24.0, "co2e_per_usd": 1.2},
+    "cheese":      {"co2e_per_kg": 21.0, "co2e_per_usd": 0.9},
+    "pork":        {"co2e_per_kg": 7.0,  "co2e_per_usd": 0.7},
+    "poultry":     {"co2e_per_kg": 6.0,  "co2e_per_usd": 0.6},
+    "seafood":     {"co2e_per_kg": 5.0,  "co2e_per_usd": 0.6},
+    "eggs":        {"co2e_per_kg": 4.5,  "co2e_per_usd": 0.5},
+    "dairy":       {"co2e_per_kg": 3.0,  "co2e_per_usd": 0.5},
+    "tofu_soy":    {"co2e_per_kg": 3.0,  "co2e_per_usd": 0.4},
+    "oils":        {"co2e_per_kg": 3.3,  "co2e_per_usd": 0.5},
+    "prepared":    {"co2e_per_kg": 4.0,  "co2e_per_usd": 0.5},
+    "nuts_seeds":  {"co2e_per_kg": 2.3,  "co2e_per_usd": 0.4},
+    "grains":      {"co2e_per_kg": 1.4,  "co2e_per_usd": 0.4},
+    "legumes":     {"co2e_per_kg": 0.9,  "co2e_per_usd": 0.3},
+    "fruits":      {"co2e_per_kg": 0.7,  "co2e_per_usd": 0.3},
+    "vegetables":  {"co2e_per_kg": 0.5,  "co2e_per_usd": 0.3},
+    "beverages":   {"co2e_per_kg": 0.9,  "co2e_per_usd": 0.3},
+    "uncategorized": {"co2e_per_kg": null, "co2e_per_usd": 0.5}
+  }
+}

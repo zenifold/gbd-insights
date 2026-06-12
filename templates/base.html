@@ -1,0 +1,35 @@
+{% load static tailwind_cli %}
+<!doctype html>
+<html lang="en" data-theme="emerald">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="csrf-token" content="{{ csrf_token }}">
+    <title>{% block title %}GBD Insights{% endblock %}</title>
+    {% tailwind_css %}
+    <script src="{% static 'vendor/htmx.min.js' %}" defer></script>
+</head>
+<body class="min-h-screen bg-base-200">
+    <div class="navbar bg-base-100 shadow-sm">
+        <div class="flex-1">
+            <a href="{% url 'upload_page' %}" class="btn btn-ghost text-xl">🌱 GBD Insights</a>
+        </div>
+        <div class="flex-none items-center gap-1">
+            {% if user.is_authenticated %}
+            <ul class="menu menu-horizontal px-1">
+                <li><a href="{% url 'upload_page' %}">Upload</a></li>
+                <li><a href="{% url 'dashboard' %}">{% if user.is_staff %}All runs{% else %}My runs{% endif %}</a></li>
+                {% if user.is_staff %}<li><a href="/django-admin/">Admin</a></li>{% endif %}
+            </ul>
+            <span class="text-sm opacity-60 px-2">{{ user.get_username }}</span>
+            <form method="post" action="{% url 'logout' %}" class="inline">{% csrf_token %}
+                <button class="btn btn-ghost btn-sm">Log out</button>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+    <main class="container mx-auto max-w-3xl p-6">
+        {% block content %}{% endblock %}
+    </main>
+</body>
+</html>

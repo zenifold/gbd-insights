@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}Runs dashboard — GBD Insights{% endblock %}
+
+{% block content %}
+<div class="card bg-base-100 shadow-md">
+    <div class="card-body">
+        <h1 class="card-title text-2xl">{% if is_staff %}Runs{% else %}Your runs{% endif %}</h1>
+        <p class="opacity-70">{% if is_staff %}All analysis runs across clients — for monitoring, troubleshooting, and retrieving past outputs.{% else %}Your organization's analysis runs and reports.{% endif %}</p>
+
+        <form method="get" class="flex flex-wrap gap-2 items-end mt-3">
+            <label class="form-control">
+                <span class="label-text text-xs">Status</span>
+                <select name="status" class="select select-bordered select-sm">
+                    <option value="">All</option>
+                    {% for value, label in statuses %}
+                        <option value="{{ value }}" {% if value == cur_status %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+            {% if is_staff %}
+            <label class="form-control">
+                <span class="label-text text-xs">Client</span>
+                <select name="client" class="select select-bordered select-sm">
+                    <option value="">All</option>
+                    {% for c in clients %}
+                        <option value="{{ c.id }}" {% if cur_client == c.id|stringformat:'s' %}selected{% endif %}>{{ c.name }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+            {% endif %}
+            <label class="form-control">
+                <span class="label-text text-xs">Filename</span>
+                <input name="q" value="{{ query }}" placeholder="search…" class="input input-bordered input-sm">
+            </label>
+            <button class="btn btn-sm btn-primary">Filter</button>
+            <a href="{% url 'dashboard' %}" class="btn btn-sm btn-ghost">Reset</a>
+        </form>
+
+        <div class="overflow-x-auto mt-4">
+            <table class="table table-sm">
+                <thead>
+                    <tr><th>Created</th><th>Client</th><th>File</th><th>Status</th><th>By</th><th>Finished</th><th></th></tr>
+                </thead>
+                <tbody>
+                    {% for run in page %}
+                    <tr>
+                        <td class="whitespace-nowrap">{{ run.created_at|date:"Y-m-d H:i" }}</td>
+                        <td>{{ run.client.name }}</td>
+                        <td class="font-mono text-xs">{{ run.source_filename|default:"—"|truncatechars:32 }}</td>
+                        <td>{% include "partials/_badge.html" with status=run.status %}</td>
+                        <td class="text-xs">{{ run.created_by|default:"—" }}</td>
+                        <td class="whitespace-nowrap text-xs">{{ run.finished_at|date:"Y-m-d H:i"|default:"—" }}</td>
+                        <td class="whitespace-nowrap">
+                            <a href="{% url 'run_status_page' run.id %}" class="btn btn-xs btn-outline">Open</a>
+                            {% if is_staff %}<a href="{% url 'run_detail' run.id %}" class="btn btn-xs btn-ghost">Admin</a>{% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="7" class="text-center opacity-60 py-6">No runs match.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {% if page.paginator.num_pages > 1 %}
+        <div class="join mt-4 justify-center">
+            {% if page.has_previous %}
+                <a class="join-item btn btn-sm" href="?page={{ page.previous_page_number }}&status={{ cur_status }}&client={{ cur_client }}&q={{ query }}">«</a>
+            {% endif %}
+            <span class="join-item btn btn-sm btn-disabled">Page {{ page.number }} / {{ page.paginator.num_pages }}</span>
+            {% if page.has_next %}
+                <a class="join-item btn btn-sm" href="?page={{ page.next_page_number }}&status={{ cur_status }}&client={{ cur_client }}&q={{ query }}">»</a>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

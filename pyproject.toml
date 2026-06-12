@@ -1,0 +1,34 @@
+[project]
+name = "gbd-insights"
+version = "0.1.0"
+description = "Greener by Default — internal foodservice procurement insights tool (V1)"
+requires-python = ">=3.12"
+dependencies = [
+    "django>=6.0",
+    "psycopg[binary]>=3.2",
+    "whitenoise>=6.7",
+    "django-tailwind-cli>=2.21",
+    "django-environ>=0.11",
+    "dj-database-url>=2.2",
+    "requests>=2.32",
+    "reportlab>=4.2",
+    "openpyxl>=3.1",
+    "gunicorn>=23.0",
+    "pandas>=3.0.3",
+]
+
+[dependency-groups]
+dev = [
+    "playwright>=1.60.0",
+    "pytest>=8.3",
+    "pytest-django>=4.9",
+]
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "config.settings"
+python_files = ["test_*.py", "tests.py"]
+testpaths = ["runs/tests", "pipeline/tests"]
+addopts = "-ra"
+
+[tool.uv]
+package = false

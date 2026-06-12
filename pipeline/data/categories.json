@@ -1,0 +1,28 @@
+{
+  "_comment": "Deterministic keyword taxonomy. Each line item is mapped to the FIRST category (in this order) whose any keyword appears (case-insensitive substring) in the product description. One item -> one category, matching GBD's existing tool behaviour. GBD can edit keywords/order here; the science factors live in factors.json.",
+  "order": [
+    "beef", "lamb", "pork", "poultry", "seafood", "eggs", "cheese", "dairy",
+    "tofu_soy", "legumes", "nuts_seeds", "grains", "vegetables", "fruits",
+    "oils", "beverages", "prepared"
+  ],
+  "categories": {
+    "beef": {"label": "Beef", "keywords": ["beef", "steak", "hamburger", "brisket", "veal"]},
+    "lamb": {"label": "Lamb & goat", "keywords": ["lamb", "mutton", "goat"]},
+    "pork": {"label": "Pork", "keywords": ["pork", "bacon", " ham", "ham ", "sausage", "prosciutto", "pepperoni"]},
+    "poultry": {"label": "Poultry", "keywords": ["chicken", "turkey", "poultry", "duck"]},
+    "seafood": {"label": "Fish & seafood", "keywords": ["fish", "salmon", "tuna", "shrimp", "cod", "tilapia", "seafood", "crab", "lobster", "haddock", "pollock"]},
+    "eggs": {"label": "Eggs", "keywords": ["egg"]},
+    "cheese": {"label": "Cheese", "keywords": ["cheese", "cheddar", "mozzarella", "parmesan", "feta"]},
+    "dairy": {"label": "Dairy (milk, yogurt)", "keywords": ["milk", "yogurt", "yoghurt", "cream", "butter", "dairy"]},
+    "tofu_soy": {"label": "Tofu & soy", "keywords": ["tofu", "tempeh", "soy", "edamame", "seitan"]},
+    "legumes": {"label": "Legumes & pulses", "keywords": ["bean", "lentil", "chickpea", "garbanzo", "legume", "hummus", "pea", "pulse"]},
+    "nuts_seeds": {"label": "Nuts & seeds", "keywords": ["almond", "peanut", "cashew", "walnut", "pecan", "tahini", "seed", "nut"]},
+    "grains": {"label": "Grains & bread", "keywords": ["rice", "bread", "pasta", "wheat", "flour", "oat", "grain", "cereal", "tortilla", "bun", "noodle", "quinoa", "barley"]},
+    "vegetables": {"label": "Vegetables", "keywords": ["vegetable", "lettuce", "greens", "spinach", "tomato", "potato", "onion", "carrot", "broccoli", "pepper", "mushroom", "cabbage", "kale", "celery", "cucumber", "squash"]},
+    "fruits": {"label": "Fruits", "keywords": ["fruit", "apple", "banana", "berry", "orange", "melon", "grape", "mango", "pineapple", "peach"]},
+    "oils": {"label": "Oils & fats", "keywords": ["oil", "margarine", "shortening", "lard"]},
+    "beverages": {"label": "Beverages", "keywords": ["juice", "soda", "coffee", "tea", "beverage", "water", "cola"]},
+    "prepared": {"label": "Prepared & mixed", "keywords": ["soup", "sauce", "pizza", "prepared", "frozen meal", "entree", "burrito"]},
+    "uncategorized": {"label": "Uncategorized", "keywords": []}
+  }
+}

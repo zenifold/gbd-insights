@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+
+# Django
+staticfiles/
+*.log
+
+# Env / secrets
+.env
+
+# Local storage backend + scratch
+var/
+.pytest_cache/
+
+# Tailwind CLI binary cache
+.django_tailwind_cli/
+
+# OS
+.DS_Store
+Thumbs.db

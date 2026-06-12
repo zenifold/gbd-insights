@@ -1,0 +1,5 @@
+{% if status == "DONE" %}<span class="badge badge-success">Done</span>
+{% elif status == "FAILED" %}<span class="badge badge-error">Failed</span>
+{% elif status == "RUNNING" %}<span class="badge badge-primary">Running</span>
+{% elif status == "QUEUED" %}<span class="badge badge-info">Queued</span>
+{% else %}<span class="badge badge-ghost">Pending upload</span>{% endif %}

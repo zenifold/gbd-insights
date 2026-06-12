@@ -1,0 +1,41 @@
+# Render blueprint: one web service + one worker, built from the SAME Dockerfile.
+# Database & Storage are Supabase (external), referenced via env vars.
+services:
+  - type: web
+    name: gbd-insights-web
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: starter
+    healthCheckPath: /healthz
+    # Block insecure-default deploys, then migrate, before traffic shifts over.
+    preDeployCommand: python manage.py check --deploy --fail-level ERROR && python manage.py migrate --noinput
+    startCommand: gunicorn config.wsgi --bind 0.0.0.0:$PORT --workers 3
+    envVars: &shared
+      - key: DJANGO_SECRET_KEY
+        generateValue: true
+      - key: DJANGO_DEBUG
+        value: "False"
+      - key: DJANGO_ALLOWED_HOSTS
+        sync: false
+      - key: PUBLIC_BASE_URL
+        sync: false
+      - key: DATABASE_URL          # Supabase SESSION-mode connection (port 5432)
+        sync: false
+      - key: STORAGE_BACKEND
+        value: supabase
+      - key: STORAGE_BUCKET
+        value: gbd-procurement
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_KEY  # server-side only
+        sync: false
+      # Auth is session-based (django.contrib.auth). After first deploy, create the
+      # GBD admin once:  render shell -> python manage.py createsuperuser
+
+  - type: worker
+    name: gbd-insights-worker
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: starter
+    startCommand: python manage.py run_worker
+    envVars: *shared

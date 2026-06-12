@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Run {{ run.id }} — GBD Insights{% endblock %}
+
+{% block content %}
+<div class="card bg-base-100 shadow-md">
+    <div class="card-body">
+        <div class="flex items-center gap-3">
+            <h1 class="card-title text-xl">Run detail</h1>
+            {% include "partials/_badge.html" with status=run.status %}
+        </div>
+        <p class="font-mono text-xs opacity-60">{{ run.id }}</p>
+
+        <div class="flex flex-wrap gap-2 my-3">
+            {% if run.status == "DONE" and run.artifact_path %}
+                <a href="{% url 'download' run.id %}" class="btn btn-sm btn-success">⬇ Report bundle (ZIP)</a>
+            {% endif %}
+            {% if run.source_path %}
+                <a href="{% url 'download_source' run.id %}" class="btn btn-sm btn-outline">⬇ Source file</a>
+            {% endif %}
+            <a href="{% url 'run_status_page' run.id %}" class="btn btn-sm btn-ghost">Client status view →</a>
+        </div>
+
+        {% if run.error_message %}
+        <div class="alert alert-error mb-3 items-start">
+            <div>
+                <h3 class="font-bold">Error{% if run.error_code %} ({{ run.error_code }}){% endif %}</h3>
+                <div class="text-sm">{{ run.error_message }}</div>
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="overflow-x-auto">
+            <table class="table table-sm">
+                <tbody>
+                    <tr><th class="w-48">Client</th><td>{{ run.client.name }} <span class="opacity-50 text-xs">({{ run.client.slug }})</span></td></tr>
+                    <tr><th>Uploaded by</th><td>{{ run.created_by|default:"—" }}</td></tr>
+                    <tr><th>Source file</th><td class="font-mono text-xs">{{ run.source_filename|default:"—" }}{% if run.source_bytes %} · {{ run.source_bytes|filesizeformat }}{% endif %}</td></tr>
+                    <tr><th>Source path</th><td class="font-mono text-xs break-all">{{ run.source_path|default:"—" }}</td></tr>
+                    <tr><th>Artifact path</th><td class="font-mono text-xs break-all">{{ run.artifact_path|default:"—" }}</td></tr>
+                    <tr><th>Attempts</th><td>{{ run.attempts }}{% if run.claimed_by %} · last worker <span class="font-mono text-xs">{{ run.claimed_by }}</span>{% endif %}</td></tr>
+                    <tr><th>Created</th><td>{{ run.created_at|date:"Y-m-d H:i:s" }}</td></tr>
+                    <tr><th>Started</th><td>{{ run.started_at|date:"Y-m-d H:i:s"|default:"—" }}</td></tr>
+                    <tr><th>Finished</th><td>{{ run.finished_at|date:"Y-m-d H:i:s"|default:"—" }}</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        {% if run.summary %}
+        <h3 class="font-semibold mt-4 mb-1">Summary metadata</h3>
+        <pre class="bg-base-200 rounded p-3 text-xs overflow-x-auto">{{ summary_pretty }}</pre>
+        {% endif %}
+
+        <a href="{% url 'dashboard' %}" class="link link-hover text-sm mt-4">← Back to dashboard</a>
+    </div>
+</div>
+{% endblock %}

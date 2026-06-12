@@ -1,0 +1,70 @@
+{% comment %}
+Swapped in via HTMX (outerHTML). Keeps polling only while the run is non-terminal;
+once DONE/FAILED the replacement carries no hx-trigger, so polling stops.
+{% endcomment %}
+<div id="status" class="mt-4"
+     {% if not run.is_terminal %}hx-get="{% url 'run_status' run.id %}" hx-trigger="every 2s" hx-swap="outerHTML"{% endif %}>
+
+    {% if run.status == "QUEUED" %}
+        <div class="flex items-center gap-3">
+            <span class="loading loading-spinner loading-md"></span>
+            <span class="badge badge-info">Queued</span>
+            <span class="opacity-70">Waiting for an available worker…</span>
+        </div>
+    {% elif run.status == "RUNNING" %}
+        <div class="flex items-center gap-3">
+            <span class="loading loading-spinner loading-md text-primary"></span>
+            <span class="badge badge-primary">Running</span>
+            <span class="opacity-70">Analyzing your procurement data…</span>
+        </div>
+    {% elif run.status == "DONE" %}
+        <div class="alert alert-success mb-4">
+            <span>Your report is ready.</span>
+        </div>
+
+        {% with s=run.summary %}
+        <div class="stats stats-vertical sm:stats-horizontal shadow w-full mb-4">
+            <div class="stat">
+                <div class="stat-title">Total emissions</div>
+                <div class="stat-value text-2xl">{{ s.total_emissions_tonnes|floatformat:2 }} t</div>
+                <div class="stat-desc">{{ s.total_emissions_kgco2e|floatformat:0 }} kg CO₂e</div>
+            </div>
+            <div class="stat">
+                <div class="stat-title">Top category</div>
+                <div class="stat-value text-2xl">{{ s.top_category|default:"—" }}</div>
+                <div class="stat-desc">{{ s.top_category_share_pct|floatformat:0 }}% of emissions</div>
+            </div>
+            <div class="stat">
+                <div class="stat-title">Line items</div>
+                <div class="stat-value text-2xl">{{ s.line_items|default:0 }}</div>
+                <div class="stat-desc">{{ s.emissions_intensity_kgco2e_per_usd|floatformat:2 }} kg CO₂e / $</div>
+            </div>
+        </div>
+
+        {% if s.warnings %}
+        <div class="alert alert-warning mb-4 items-start">
+            <div>
+                <h3 class="font-bold">Things to check</h3>
+                <ul class="list-disc list-inside text-sm">
+                    {% for w in s.warnings %}<li>{{ w }}</li>{% endfor %}
+                </ul>
+            </div>
+        </div>
+        {% endif %}
+        {% endwith %}
+
+        <a href="{% url 'download' run.id %}" class="btn btn-success">⬇ Download report bundle (ZIP)</a>
+        <p class="text-xs opacity-60 mt-2">Includes the PDF report plus CSV/JSON data and a provenance manifest.
+            Emission factors are placeholders pending GBD's validated values.</p>
+    {% elif run.status == "FAILED" %}
+        <div class="alert alert-error">
+            <div>
+                <h3 class="font-bold">We couldn't process this file</h3>
+                <div class="text-sm">{{ run.error_message }}</div>
+            </div>
+        </div>
+        <a href="{% url 'upload_page' %}" class="btn btn-outline mt-4">Try again</a>
+    {% else %}
+        <span class="badge">Awaiting upload</span>
+    {% endif %}
+</div>

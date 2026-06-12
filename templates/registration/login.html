@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Sign in — GBD Insights{% endblock %}
+
+{% block content %}
+<div class="card bg-base-100 shadow-md max-w-md mx-auto mt-10">
+    <div class="card-body">
+        <h1 class="card-title text-2xl">Sign in</h1>
+        <p class="opacity-70 text-sm">Greener by Default — Foodservice Insights</p>
+
+        {% if form.errors %}
+        <div class="alert alert-error text-sm mt-2">Incorrect username or password.</div>
+        {% endif %}
+
+        <form method="post" class="space-y-3 mt-3">
+            {% csrf_token %}
+            <label class="form-control w-full">
+                <span class="label-text mb-1">Username</span>
+                <input name="username" class="input input-bordered w-full" autofocus required>
+            </label>
+            <label class="form-control w-full">
+                <span class="label-text mb-1">Password</span>
+                <input name="password" type="password" class="input input-bordered w-full" required>
+            </label>
+            <input type="hidden" name="next" value="{{ next }}">
+            <button class="btn btn-primary w-full">Sign in</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

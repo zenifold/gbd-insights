@@ -1,0 +1,20 @@
+# Never copy the host virtualenv (Windows) over the image's Linux .venv.
+.venv/
+__pycache__/
+*.py[cod]
+
+# Secrets and local-only state.
+.env
+var/
+_verify/
+
+# Rebuilt inside the image.
+staticfiles/
+.django_tailwind_cli/
+
+# Tooling / VCS.
+.git/
+.gitignore
+.pytest_cache/
+*.md
+docker-compose.yml

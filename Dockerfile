@@ -26,5 +26,6 @@ RUN python manage.py tailwind build && \
 
 EXPOSE 8000
 
-# Default to the web process; render.yaml overrides startCommand for the worker.
-CMD ["gunicorn", "config.wsgi", "--bind", "0.0.0.0:8000", "--workers", "3"]
+# Default to the web process (binds Render's $PORT; falls back to 8000 locally).
+# render.yaml overrides the command for the worker via dockerCommand.
+CMD ["sh", "-c", "gunicorn config.wsgi --bind 0.0.0.0:${PORT:-8000} --workers ${WEB_CONCURRENCY:-3}"]

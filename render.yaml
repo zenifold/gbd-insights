@@ -9,7 +9,7 @@ services:
     healthCheckPath: /healthz
     # Block insecure-default deploys, then migrate, before traffic shifts over.
     preDeployCommand: python manage.py check --deploy --fail-level ERROR && python manage.py migrate --noinput
-    startCommand: gunicorn config.wsgi --bind 0.0.0.0:$PORT --workers 3
+    # No startCommand for docker runtime — the Dockerfile CMD runs gunicorn on $PORT.
     envVars: &shared
       - key: DJANGO_SECRET_KEY
         generateValue: true
@@ -18,6 +18,8 @@ services:
       - key: DJANGO_ALLOWED_HOSTS
         sync: false
       - key: PUBLIC_BASE_URL
+        sync: false
+      - key: DJANGO_CSRF_TRUSTED_ORIGINS   # e.g. https://gbd-insights-web.onrender.com
         sync: false
       - key: DATABASE_URL          # Supabase SESSION-mode connection (port 5432)
         sync: false
@@ -37,5 +39,5 @@ services:
     runtime: docker
     dockerfilePath: ./Dockerfile
     plan: starter
-    startCommand: python manage.py run_worker
+    dockerCommand: python manage.py run_worker
     envVars: *shared

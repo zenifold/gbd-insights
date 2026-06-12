@@ -1,189 +1,280 @@
-# GBD Foodservice Insights — V1 internal tool
+# GBD Foodservice Insights
 
-An internal web app that wraps Greener by Default's Python food-procurement
-analysis pipeline. An analyst uploads a procurement spreadsheet, a background
-worker runs the analysis, and the analyst downloads a PDF report.
+An internal web app that turns a client's food‑procurement spreadsheet into a
+carbon‑footprint analysis. A user uploads a purchasing file, a deterministic
+Python ETL analyzes it, and the app shows an interactive report (and a
+downloadable PDF/CSV/JSON bundle).
 
-Client flow: **upload → status → download**, plus a **GBD admin dashboard**
-([`/dashboard`](runs/views.py)) showing every run across all clients with full
-metadata and re-download of past outputs/inputs. Django + HTMX, Supabase
-(Postgres + Storage), deployed on Render.
+**Client flow:** `upload → live progress → interactive report + download`.
+**GBD staff** also get a dashboard ([`/dashboard`](runs/views.py)) of every run
+across all clients, with metadata and re‑download of past inputs/outputs.
 
-> **Status:** working end-to-end. The analysis is a real deterministic ETL
-> ([`pipeline/`](pipeline/)); only the **emission factors** are placeholders
-> pending GBD's validated values ([`pipeline/data/factors.json`](pipeline/data/factors.json)).
+Stack: **Django + HTMX**, **Tailwind/DaisyUI** (no Node — standalone CLI),
+**Supabase** (Postgres + Storage), deployable on **Render**. Managed with
+[`uv`](https://docs.astral.sh/uv/).
 
-## Architecture
+> **Status:** working end‑to‑end, 60 passing tests. The analysis is a real,
+> reproducible ETL ([`pipeline/`](pipeline/)); only the **emission factors** are
+> placeholders pending GBD's validated values
+> ([`pipeline/data/factors.json`](pipeline/data/factors.json)).
 
-```
-Browser (session login) ─1. create run──▶ Django web ──mint signed URL──▶
-        └──2. PUT file directly──▶ Supabase Storage (private bucket)
-        └──3. finalize──▶ Django marks run QUEUED
-                                          │ Postgres queue (the runs table)
-Worker (same image) ──claim (FOR UPDATE SKIP LOCKED)──▶ download ▶ validate ▶
-        run pipeline ▶ upload artifact ▶ mark DONE/FAILED
-```
+---
 
-* **Queue:** the `runs_analysisrun` table *is* the queue; the worker claims the
-  oldest `QUEUED` row with `FOR UPDATE SKIP LOCKED`. No Celery/Redis.
-* **Uploads** go **directly to object storage** via a short-lived signed URL —
-  file bytes never pass through the web process (handles >100 MB cleanly).
-* **Storage is pluggable** ([`runs/storage/`](runs/storage/)): a `local`
-  filesystem adapter for dev (emulates the signed-URL flow) and a `supabase`
-  adapter for production. Same browser flow either way.
+## Contents
+1. [Run it locally](#1-run-it-locally)
+2. [What you can upload](#2-what-you-can-upload)
+3. [The analysis (Python ETL)](#3-the-analysis-python-etl)
+4. [Plug in your own Python](#4-plug-in-your-own-python)
+5. [Put it online (domain + cloud DB)](#5-put-it-online-domain--cloud-db)
+6. [Security](#6-security)
+7. [Tests & operations](#7-tests--operations)
 
-## Security (top priority)
+---
 
-* **Session login + multi-tenancy** ([`django.contrib.auth`], [`runs/middleware.py`](runs/middleware.py),
-  [`runs/scoping.py`](runs/scoping.py)). Each user has a [`Profile`](runs/models.py)
-  linking them to a client (institution); GBD staff (`is_staff`) see everything.
-  Every run view filters to the user's client (**primary** isolation), and the
-  request's RLS scope is set from the user (**defense-in-depth**).
-* **Row Level Security** is enabled and `FORCE`d on both tables
-  ([`runs/migrations/0002_rls_policies.py`](runs/migrations/0002_rls_policies.py)).
-  When connected as a **non-superuser** role, a per-request `SET LOCAL` GUC scopes
-  visibility (service scope for staff, single-client for client users); with no
-  scope the database returns nothing (deny by default).
-* **Signed URLs** for both upload and download; the artifact bucket is private.
-* **Secrets** are env-only; see [`.env.example`](.env.example). Never commit `.env`.
-* **CSV/formula injection** — every CSV export is built from untrusted product/
-  vendor text, so cells beginning with `= + - @` or control chars are prefixed
-  with `'` ([`pipeline/report.py`](pipeline/report.py)) so spreadsheet apps can't
-  execute them on open.
-* **Malicious uploads** — `.xlsx` files that decompress beyond a limit are
-  rejected (zip-bomb guard), and the local upload endpoint enforces a hard byte
-  cap mid-stream ([`runs/validation.py`](runs/validation.py),
-  [`runs/storage/local.py`](runs/storage/local.py)).
-* **Insecure-default guard** — a deploy check ([`runs/checks.py`](runs/checks.py))
-  fails the build if `DJANGO_SECRET_KEY` or `BASIC_AUTH_PASS` are left at their
-  defaults when `DEBUG=False`; it runs in Render's `preDeployCommand` so a
-  misconfigured deploy is blocked before serving traffic.
+## 1. Run it locally
 
-> **Connection note:** in production use a Supabase **session-mode** connection
-> (port 5432 / direct), *not* the transaction pooler (6543) — the pooler would
-> scramble the per-request `SET LOCAL` GUCs that RLS relies on.
-
-## Local development
-
-Prerequisites: [uv](https://docs.astral.sh/uv/), Docker.
+**Prerequisites:** [uv](https://docs.astral.sh/uv/) and Docker Desktop.
 
 ```bash
-uv sync                                   # install deps
-cp .env.example .env                      # defaults work as-is for local dev
-docker compose up -d                      # local Postgres (creates the gbd_app role)
-uv run python manage.py migrate
-uv run python manage.py createsuperuser   # the GBD admin (sees all clients)
-uv run python manage.py create_client_account \
-    --name "Acme University" --username acme --password 's3cret'   # a client account
-uv run python manage.py tailwind build    # build DaisyUI CSS (downloads CLI once)
-
-# Two terminals:
-uv run python manage.py runserver         # web  → http://localhost:8000
-uv run python manage.py run_worker        # worker
+uv sync                                    # install Python deps into .venv
+cp .env.example .env                       # defaults work as‑is for local dev
+docker compose up -d                       # local Postgres (creates the gbd_app role)
+uv run python manage.py migrate            # create tables + RLS policies
+uv run python manage.py tailwind build     # build the CSS (downloads the CLI once)
+uv run python manage.py createsuperuser    # your GBD admin login (sees all runs)
 ```
 
-Open http://localhost:8000 and sign in. A **client** account (e.g. `acme`) uploads
-[`sample_data/sample.csv`](sample_data/sample.csv) for its own org and sees only
-its own runs; the **GBD admin** sees every client's runs and can manage clients +
-accounts at `/django-admin/`.
-
-## Data format (what to upload)
-
-The upload page has a built-in **"How should my file be formatted?"** guide and a
-**Download CSV template** button ([`/template.csv`](runs/views.py)). In short: one
-row per line item, headers in row 1. **`product`** is required; provide **`spend`**
-(USD) and/or **`quantity`** + **`unit`**. `vendor` and `date` are optional (a date
-unlocks the by-period breakdown). Column names are flexible — synonyms like
-`item`/`description`, `amount`/`cost`, `qty`, `supplier` are auto-detected
-([`pipeline/ingest.py`](pipeline/ingest.py)), and the worker validates against the
-same mapping, rejecting bad files with specific messages
-([`runs/validation.py`](runs/validation.py)).
-
-## Tests
+Then start the app. Locally the DB‑backed queue is drained by a **worker**, so
+run two processes (two terminals):
 
 ```bash
-uv run pytest                            # 57 unit/integration tests
-uv run python scripts/shot_selfserve.py  # optional: headless self-serve UI check
+uv run python manage.py runserver          # web  → http://localhost:8000
+uv run python manage.py run_worker         # background analysis worker
 ```
 
-Covers validation edge cases, the queue claim + reaper, the worker
-happy/crash/validation paths, the two-step upload views, status-page metrics,
-**multi-tenant isolation** (a client can't see or open another client's runs;
-uploads auto-scope; admin views are staff-only), **RLS enforcement**, and pipeline
-reproducibility. Requires the local Postgres running; the browser checks also need
-the dev server + worker up (`uv run playwright install chromium` once).
+> Prefer a single process? Set `PROCESS_INLINE=true` in `.env` and skip the
+> worker — uploads are then analyzed inline in the web request. (Good for quick
+> demos; the live progress bar won't stream stage‑by‑stage in this mode.)
 
-## Deployment (Render)
+Open <http://localhost:8000>, sign in as the admin, and upload a file —
+[`sample_data/sample.csv`](sample_data/sample.csv) is a quick start. To onboard a
+real client with its own self‑serve login (scoped to only their data):
 
-[`render.yaml`](render.yaml) deploys **one free web service**. Uploads are
-processed **inline in the web request** (`PROCESS_INLINE=true`), so no paid
-background worker is needed — ideal for demos. For higher throughput, add a
-second `type: worker` service (`dockerCommand: python manage.py run_worker`) on a
-paid plan and set `PROCESS_INLINE=false`; both are built from the same
-[`Dockerfile`](Dockerfile).
+```bash
+uv run python manage.py create_client_account --name "Acme University" --username acme --password 's3cret'
+```
 
-Set these env vars (see `.env.example`): `DJANGO_SECRET_KEY`,
-`DJANGO_ALLOWED_HOSTS`, `PUBLIC_BASE_URL`, `DJANGO_CSRF_TRUSTED_ORIGINS`,
-`DATABASE_URL` (Supabase session mode), `STORAGE_BACKEND=supabase`,
-`SUPABASE_URL`, `SUPABASE_SERVICE_KEY`. Create the GBD admin after first deploy
-with `createsuperuser` (Render Shell).
+**Editing styles:** the brand theme lives in [`styles/source.css`](styles/source.css).
+After changing it, rebuild with `uv run python manage.py tailwind build --force`
+(and `collectstatic` before deploying — see §5).
 
-### Supabase setup (cloud)
-1. **App DB role** — run [`db/supabase_setup.sql`](db/supabase_setup.sql) in the
-   Supabase SQL editor to create the non-superuser `gbd_app` role (so RLS is
-   enforced; the built-in `postgres` user bypasses it).
-2. **Env** — set `STORAGE_BACKEND=supabase`, `SUPABASE_URL`,
-   `SUPABASE_SERVICE_KEY` (the `sb_secret_…`/service-role key — never the
-   publishable/anon key), `STORAGE_BUCKET=gbd-procurement`, and `DATABASE_URL`
-   using the **session-mode** connection (port 5432) as `gbd_app`.
-3. **Migrate** — `python manage.py migrate` (tables are created and owned by
-   `gbd_app`, keeping them off the public Data API and under FORCE RLS).
-4. **Verify** — `python manage.py check_supabase` ensures the private bucket
-   exists, runs a full signed-URL storage round-trip, and confirms the DB role
-   does not bypass RLS.
-5. **CORS** — if the browser's direct PUT is blocked, add the web app origin to
-   the Storage CORS allow-list in the Supabase dashboard.
+---
 
-### Operations / alerts (handover)
-* Alert on **worker service down/restart** (Render service health) and on
-  **storage usage thresholds** (Supabase dashboard).
-* A run stuck in `RUNNING` past `WORKER_STALE_SECONDS` is auto-requeued by the
-  worker's startup/periodic reaper; after `WORKER_MAX_ATTEMPTS` it is failed with
-  a human-readable message.
+## 2. What you can upload
 
-## Data pipeline (ETL)
+One row per line item, headers in row 1. Column names are flexible — synonyms are
+auto‑detected ([`pipeline/ingest.py`](pipeline/ingest.py)).
 
-A real, deterministic ETL lives in [`pipeline/`](pipeline/) behind
-`run_pipeline(input_path, workdir) -> PipelineResult`
+| Column | Required? | Synonyms accepted | Notes |
+|---|---|---|---|
+| `product` | **Yes** | `item`, `description` | what was purchased |
+| `spend` | one of spend / quantity | `amount`, `cost`, `price` | USD |
+| `quantity` + `unit` | one of spend / quantity | `qty` | weight (`lb, oz, kg, g`) or volume (`gal, l, ml, qt`) → weight‑based estimate; other units (`case, each`) fall back to spend |
+| `vendor` | optional | `supplier` | |
+| `date` | optional | | unlocks the month‑by‑month breakdown |
+
+The upload page has a built‑in format guide and a **Download CSV template**
+button ([`/template.csv`](runs/views.py)). Bad files are rejected with specific,
+human‑readable messages ([`runs/validation.py`](runs/validation.py)).
+
+---
+
+## 3. The analysis (Python ETL)
+
+A real, deterministic ETL lives in [`pipeline/`](pipeline/) behind one entry
+point — `run_pipeline(input_path, out_dir, *, on_progress=None) -> PipelineResult`
 ([`pipeline/interface.py`](pipeline/interface.py)). Stages:
 
 1. **ingest** ([`ingest.py`](pipeline/ingest.py)) — read CSV/XLSX, map header
-   synonyms (`item`→product, `amount`→spend, …) to canonical columns.
+   synonyms to canonical columns.
 2. **clean** ([`clean.py`](pipeline/clean.py)) — coerce money/quantity, normalize
-   units, derive mass in kg, parse a reporting period, drop/flag bad rows, emit a
-   data-quality report.
-3. **categorize** ([`categorize.py`](pipeline/categorize.py)) — deterministic
-   keyword rules map each item to exactly one GBD category (no LLM → reproducible).
-4. **emissions** ([`emissions.py`](pipeline/emissions.py)) — mass-based factor
-   (`mass × kgCO2e/kg`) where mass is known, else spend-based fallback.
-5. **aggregate** ([`aggregate.py`](pipeline/aggregate.py)) — by category & period,
-   top contributors, headline totals.
-6. **report** ([`report.py`](pipeline/report.py)) — write the output set and a
+   units, derive **mass in kg** (from weight *or* volume × density), parse a
+   reporting period, drop/flag bad rows, emit a data‑quality report.
+3. **categorize** ([`categorize.py`](pipeline/categorize.py)) — token‑aware
+   keyword rules map each item to exactly one GBD category (no LLM →
+   reproducible). Includes a **plant‑based alternatives** category so Beyond /
+   Impossible / oat & almond milk are recognized, not mislabeled as meat/dairy.
+4. **emissions** ([`emissions.py`](pipeline/emissions.py)) — best available
+   method per item: **mass‑based** (`mass × kgCO₂e/kg`, high confidence) →
+   **volume‑based** (via density, medium) → **spend‑based** fallback (low). The
+   method + confidence is recorded per row.
+5. **aggregate** ([`aggregate.py`](pipeline/aggregate.py)) — totals, by category &
+   month, top contributors, carbon **intensity** (per $ and per kg of food), a
+   **data‑quality score**, and real‑world **equivalencies** (cars, gasoline,
+   trees, homes).
+6. **report** ([`report.py`](pipeline/report.py)) — write the output set + a
    deterministic ZIP bundle.
 
-**The science is data-driven** — edit [`pipeline/data/`](pipeline/data/):
-`categories.json` (taxonomy/keywords), `factors.json` (emission factors),
-`units.json` (unit→kg). The factor table is **placeholder** (Poore & Nemecek 2018
-midpoints + rough spend-based fallbacks) and must be replaced by GBD's validated
-factors and the additional impact metrics.
+**The science is data‑driven** — edit [`pipeline/data/`](pipeline/data/) with no
+code changes:
 
-**Output bundle** (one downloadable ZIP, usable in GBD workflows):
-`report.pdf`, `line_items_categorized.csv` (auditable per-row ETL output),
-`aggregates_by_category.csv`, `aggregates_by_period.csv`, `top_products.csv`,
-`summary.json`, `data_quality.json`, and `manifest.json` (input SHA-256 +
-per-output SHA-256 + factor/pipeline versions).
+| File | Controls |
+|---|---|
+| [`categories.json`](pipeline/data/categories.json) | the taxonomy: category order + keywords |
+| [`factors.json`](pipeline/data/factors.json) | emission factors (`kgCO₂e/kg`, spend fallback) + source citation |
+| [`units.json`](pipeline/data/units.json) | unit→kg, unit→liter, and per‑category densities |
 
-**Reproducibility:** same input + config → byte-identical data files *and* a
-byte-identical bundle (reportlab invariant mode + fixed ZIP timestamps). Verified
-by `pipeline/tests/test_pipeline.py::test_outputs_are_reproducible`; the manifest
-hashes let GBD audit/re-verify any report.
+> ⚠️ The factor table is a **placeholder** (Poore & Nemecek 2018 midpoints +
+> rough spend‑based fallbacks). Replace it with GBD's validated factors — and add
+> the additional impact metrics (land, water, animal lives, health) — before
+> production use.
+
+**Output bundle** (one ZIP): `report.pdf`, `line_items_categorized.csv`
+(auditable per‑row output), `aggregates_by_category.csv`,
+`aggregates_by_period.csv`, `top_products.csv`, `summary.json`,
+`data_quality.json`, and `manifest.json` (input SHA‑256 + per‑output SHA‑256 +
+factor/pipeline versions).
+
+**Reproducible:** same input + config → byte‑identical bundle (verified in
+[`pipeline/tests/test_pipeline.py`](pipeline/tests/test_pipeline.py)); the
+manifest hashes let GBD audit/re‑verify any report.
+
+---
+
+## 4. Plug in your own Python
+
+The web app and worker depend only on the **contract**, not the implementation:
+
+```python
+def run_pipeline(input_path: Path, out_dir: Path, *, on_progress=None) -> PipelineResult: ...
+# PipelineResult(artifact_path: Path, summary: dict, warnings: list[str])
+#   artifact_path -> a file to offer for download (e.g. a .zip or .pdf)
+#   summary       -> dict shown in the in‑app report (the keys the UI reads are
+#                    listed at the top of templates/partials/_report.html)
+#   on_progress(percent:int, message:str)  -> optional; call it to drive the
+#                    live progress bar (safe to ignore)
+```
+
+You have two ways to swap in GBD's own analysis code:
+
+**A. Edit in place.** Keep the `pipeline/` package and the `run_pipeline`
+signature; change the internals (or the data files in `pipeline/data/`).
+
+**B. Point at your own module (no app edits).** Set one env var to a dotted path:
+
+```bash
+PIPELINE_CALLABLE=my_company.analysis.run   # default: pipeline.run_pipeline
+```
+
+`runs/processing.py` imports that callable and runs it for every job. If your
+callable doesn't accept `on_progress`, it's simply called without it. Return a
+`PipelineResult` (import it from `pipeline`, or return any object with the same
+three attributes) and the rest of the app — queue, storage, status page,
+download, audit — works unchanged.
+
+---
+
+## 5. Put it online (domain + cloud DB)
+
+Production = **Supabase** (Postgres + private Storage bucket) + **Render** (runs
+the same Docker image as web, and optionally a worker). End‑to‑end:
+
+### Step 1 — Supabase (database + storage)
+1. Create a project at [supabase.com](https://supabase.com). Note the project
+   **URL** and the **service‑role key** (`sb_secret_…` — server‑side only; never
+   the anon/publishable key).
+2. **Storage:** create a **private** bucket named `gbd-procurement`.
+3. **App DB role:** in the SQL editor, run
+   [`db/supabase_setup.sql`](db/supabase_setup.sql) to create the non‑superuser
+   `gbd_app` role. This matters for security — the built‑in `postgres` user
+   *bypasses* Row‑Level Security; `gbd_app` does not, so tenant isolation is
+   actually enforced.
+4. **Connection string:** use the **session‑mode** pooler connection (port
+   **5432**), *not* the transaction pooler (6543) — the pooler would scramble the
+   per‑request `SET LOCAL` settings that RLS relies on. Format:
+   `postgres://gbd_app:<password>@<host>:5432/postgres`.
+
+### Step 2 — Deploy to Render
+[`render.yaml`](render.yaml) defines a **free single web service** that processes
+uploads inline (`PROCESS_INLINE=true`) — no paid worker needed for a demo.
+
+1. Push this repo to GitHub, then in Render: **New → Blueprint** and pick the repo
+   (it reads `render.yaml`). Or **New → Web Service** → Docker.
+2. Set the environment variables Render marks as `sync: false`:
+
+   | Var | Value |
+   |---|---|
+   | `DATABASE_URL` | the Supabase **session‑mode** URL from Step 1 |
+   | `SUPABASE_URL` | your project URL |
+   | `SUPABASE_SERVICE_KEY` | the `sb_secret_…` service‑role key |
+   | `STORAGE_BACKEND` | `supabase` |
+   | `STORAGE_BUCKET` | `gbd-procurement` |
+   | `DJANGO_ALLOWED_HOSTS` | your domain(s), e.g. `insights.greenerbydefault.com` |
+   | `PUBLIC_BASE_URL` | `https://insights.greenerbydefault.com` |
+   | `DJANGO_CSRF_TRUSTED_ORIGINS` | `https://insights.greenerbydefault.com` |
+
+   `DJANGO_SECRET_KEY` is auto‑generated and `DJANGO_DEBUG=False` by the blueprint.
+3. **Apply migrations** once (Render **Shell**): `python manage.py migrate`.
+4. **Verify Supabase wiring:** `python manage.py check_supabase` — confirms the
+   private bucket exists, runs a full signed‑URL storage round‑trip, and asserts
+   the DB role does **not** bypass RLS.
+5. **Create the GBD admin:** `python manage.py createsuperuser` (Render Shell).
+
+### Step 3 — Custom domain
+In Render → your service → **Settings → Custom Domains**, add
+`insights.greenerbydefault.com` and create the shown CNAME at your DNS provider.
+Render provisions HTTPS automatically. Make sure the domain is also in
+`DJANGO_ALLOWED_HOSTS`, `PUBLIC_BASE_URL`, and `DJANGO_CSRF_TRUSTED_ORIGINS`
+(re‑deploy after changing env vars).
+
+> If the browser's direct file upload is blocked, add your web origin to the
+> Storage **CORS** allow‑list in the Supabase dashboard.
+
+### Scaling beyond a demo
+Add a second Render service of `type: worker` with
+`dockerCommand: python manage.py run_worker`, set `PROCESS_INLINE=false`, and move
+both services to a paid plan (the worker can't run on the free tier). Both are
+built from the same [`Dockerfile`](Dockerfile).
+
+---
+
+## 6. Security
+
+Data security is the top priority of this build.
+
+* **Multi‑tenant isolation, two layers.** Every run view filters to the user's
+  client (**primary**, [`runs/scoping.py`](runs/scoping.py)), *and* Postgres
+  **Row‑Level Security** is enabled + `FORCE`d on the tables
+  ([`0002_rls_policies.py`](runs/migrations/0002_rls_policies.py)). Connected as
+  the non‑superuser `gbd_app` role, a per‑request `SET LOCAL` scopes visibility;
+  with no scope the DB returns nothing (**deny by default**).
+* **Direct‑to‑storage uploads** via short‑lived **signed URLs** — file bytes
+  never pass through the web process; the artifact bucket is private.
+* **Secrets are env‑only** ([`.env.example`](.env.example)); never commit `.env`.
+  A deploy check ([`runs/checks.py`](runs/checks.py)) blocks the build if the
+  secret key is left at its default when `DEBUG=False`.
+* **CSV/formula‑injection safe** — untrusted product/vendor text starting with
+  `= + - @` is prefixed with `'` so spreadsheets can't execute it
+  ([`pipeline/report.py`](pipeline/report.py)).
+* **Malicious uploads** — zip‑bomb guard on `.xlsx`, hard byte cap enforced
+  mid‑stream ([`runs/validation.py`](runs/validation.py)).
+
+---
+
+## 7. Tests & operations
+
+```bash
+uv run pytest                              # 60 unit/integration tests
+uv run python scripts/shot_selfserve.py    # optional headless UI check
+```
+
+Coverage: validation edge cases, the queue claim + crash‑reaper, worker
+happy/crash/validation paths, the two‑step upload, status‑page metrics, **the ETL
+(categorization, emissions, reproducibility)**, **multi‑tenant isolation**, and
+**RLS enforcement**. The DB tests need the local Postgres up; browser checks need
+the dev server + worker (`uv run playwright install chromium` once).
+
+**Operations:** alert on worker down/restart (Render health) and Storage usage
+(Supabase). A run stuck in `RUNNING` past `WORKER_STALE_SECONDS` is auto‑requeued
+by the worker's reaper; after `WORKER_MAX_ATTEMPTS` it's failed with a friendly
+message. After any schema change, re‑run `python manage.py migrate`.

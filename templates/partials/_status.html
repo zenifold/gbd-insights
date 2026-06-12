@@ -5,43 +5,34 @@ Swapped in via HTMX (outerHTML). Keeps polling only while non-terminal.
      {% if not run.is_terminal %}hx-get="{% url 'run_status' run.id %}" hx-trigger="every 2s" hx-swap="outerHTML"{% endif %}>
 
     {% if run.status == "QUEUED" or run.status == "RUNNING" %}
-        <div class="flex items-center gap-3 rounded-xl bg-base-200 px-4 py-5">
-            <span class="loading loading-spinner loading-md text-primary"></span>
-            <div>
-                <div class="font-medium">{% if run.status == "QUEUED" %}Queued{% else %}Analyzing…{% endif %}</div>
-                <div class="text-sm opacity-60">{% if run.status == "QUEUED" %}Waiting to start{% else %}Crunching your procurement data{% endif %}</div>
+        <div class="rounded-xl bg-base-200 px-5 py-6">
+            <div class="flex items-center gap-3 mb-3">
+                <span class="loading loading-spinner loading-sm text-primary"></span>
+                <div class="font-medium">
+                    {% if run.status == "QUEUED" %}Queued — waiting for a worker…{% else %}{{ run.progress_message|default:"Analyzing…" }}{% endif %}
+                </div>
+                <div class="ml-auto text-sm tabular-nums opacity-70">{{ run.progress }}%</div>
+            </div>
+
+            <progress class="progress progress-primary w-full" value="{{ run.progress }}" max="100"></progress>
+
+            {# Stage checklist — each lights up as the pipeline passes its threshold. #}
+            <div class="mt-4 grid grid-cols-3 sm:grid-cols-6 gap-2 text-[11px]">
+                {% for label, threshold in stages %}
+                <div class="flex flex-col items-center gap-1 text-center
+                            {% if run.progress >= threshold %}text-primary font-medium{% else %}opacity-40{% endif %}">
+                    <span class="grid place-items-center w-5 h-5 rounded-full border
+                                 {% if run.progress >= threshold %}bg-primary border-primary text-primary-content{% else %}border-base-300{% endif %}">
+                        {% if run.progress >= threshold %}✓{% else %}·{% endif %}
+                    </span>
+                    {{ label }}
+                </div>
+                {% endfor %}
             </div>
         </div>
 
     {% elif run.status == "DONE" %}
-        {% with s=run.summary %}
-        <div class="grid grid-cols-3 gap-3 mb-4">
-            <div class="rounded-xl border border-base-200 p-3 text-center">
-                <div class="text-2xl font-bold">{{ s.total_emissions_tonnes|floatformat:2 }}<span class="text-sm font-normal opacity-60"> t</span></div>
-                <div class="text-xs opacity-60">CO₂e ({{ s.total_emissions_kgco2e|floatformat:0 }} kg)</div>
-            </div>
-            <div class="rounded-xl border border-base-200 p-3 text-center">
-                <div class="text-2xl font-bold">{{ s.top_category|default:"—" }}</div>
-                <div class="text-xs opacity-60">Top category · {{ s.top_category_share_pct|floatformat:0 }}%</div>
-            </div>
-            <div class="rounded-xl border border-base-200 p-3 text-center">
-                <div class="text-2xl font-bold">{{ s.line_items|default:0 }}</div>
-                <div class="text-xs opacity-60">Line items</div>
-            </div>
-        </div>
-
-        {% if s.warnings %}
-        <div class="alert alert-warning items-start mb-4">
-            <div>
-                <h3 class="font-semibold text-sm">Things to check</h3>
-                <ul class="list-disc list-inside text-sm">{% for w in s.warnings %}<li>{{ w }}</li>{% endfor %}</ul>
-            </div>
-        </div>
-        {% endif %}
-        {% endwith %}
-
-        <a href="{% url 'download' run.id %}" class="btn btn-primary w-full">⬇ Download report bundle (ZIP)</a>
-        <p class="text-xs opacity-50 mt-2 text-center">PDF report + CSV/JSON data + provenance manifest.</p>
+        {% include "partials/_report.html" %}
 
     {% elif run.status == "FAILED" %}
         <div class="alert alert-error items-start">

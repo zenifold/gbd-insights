@@ -2,9 +2,9 @@
 {% block title %}Upload procurement data — GBD Insights{% endblock %}
 
 {% block content %}
-<div class="mb-6">
-    <h1 class="text-2xl font-bold">Upload procurement data</h1>
-    <p class="opacity-60">Upload a purchasing spreadsheet and we'll analyze its environmental impact.</p>
+<div class="bg-brand-wash rounded-2xl border border-base-200 px-6 py-7 mb-6">
+    <h1 class="text-3xl font-bold">Upload procurement data</h1>
+    <p class="opacity-70 mt-1">Upload a purchasing spreadsheet and we'll analyze its environmental impact.</p>
 </div>
 
 <div class="grid md:grid-cols-5 gap-6">
@@ -50,6 +50,14 @@
                     </label>
 
                     <div id="error" class="alert alert-error hidden"><span></span></div>
+
+                    <div id="progress-wrap" class="hidden">
+                        <div class="flex items-center justify-between text-sm mb-1">
+                            <span id="progress-label" class="font-medium">Uploading…</span>
+                            <span id="progress-pct" class="tabular-nums opacity-70">0%</span>
+                        </div>
+                        <progress id="progress-bar" class="progress progress-primary w-full" value="0" max="100"></progress>
+                    </div>
 
                     <button id="submit" type="submit" class="btn btn-primary w-full"
                             {% if not is_staff and not client %}disabled{% endif %}>
@@ -100,6 +108,30 @@ function setBusy(busy) {
     document.getElementById("submit-spinner").classList.toggle("hidden", !busy);
     document.getElementById("submit-label").classList.toggle("hidden", busy);
 }
+function setProgress(pct, label) {
+    const wrap = document.getElementById("progress-wrap");
+    wrap.classList.remove("hidden");
+    const p = Math.max(0, Math.min(100, Math.round(pct)));
+    document.getElementById("progress-bar").value = p;
+    document.getElementById("progress-pct").textContent = p + "%";
+    if (label) document.getElementById("progress-label").textContent = label;
+}
+// PUT the file with real upload-progress events (fetch can't report these).
+function putWithProgress(upload, file, onProgress) {
+    return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open(upload.method, upload.url);
+        for (const [k, v] of Object.entries(upload.headers || {})) xhr.setRequestHeader(k, v);
+        xhr.upload.addEventListener("progress", (e) => {
+            if (e.lengthComputable) onProgress(e.loaded / e.total);
+        });
+        xhr.addEventListener("load", () =>
+            (xhr.status >= 200 && xhr.status < 300) ? resolve()
+                : reject(new Error("Upload failed. Please try again.")));
+        xhr.addEventListener("error", () => reject(new Error("Upload failed. Please try again.")));
+        xhr.send(file);
+    });
+}
 
 document.getElementById("upload-form").addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -113,6 +145,7 @@ document.getElementById("upload-form").addEventListener("submit", async (e) => {
     if (file.size > MAX_BYTES) return showError(`File is too large (limit ${MAX_BYTES / 1048576} MB).`);
 
     setBusy(true);
+    setProgress(0, "Preparing…");
     try {
         const params = new URLSearchParams({filename: file.name, content_type: file.type || ""});
         if (IS_STAFF) {
@@ -129,20 +162,20 @@ document.getElementById("upload-form").addEventListener("submit", async (e) => {
         if (!createResp.ok) throw new Error(await createResp.text());
         const created = await createResp.json();
 
-        const putResp = await fetch(created.upload.url, {
-            method: created.upload.method,
-            headers: created.upload.headers || {},
-            body: file,
-        });
-        if (!putResp.ok) throw new Error("Upload failed. Please try again.");
+        // Upload occupies 0–90% of the bar; the fraction comes from real XHR events.
+        setProgress(2, "Uploading…");
+        await putWithProgress(created.upload, file, (frac) => setProgress(2 + frac * 88, "Uploading…"));
 
+        setProgress(92, "Queuing analysis…");
         const finResp = await fetch(created.finalize_url, {method: "POST", headers: {"X-CSRFToken": csrf}});
         const fin = await finResp.json();
         if (!finResp.ok) throw new Error(fin.error || "Could not queue the analysis.");
 
+        setProgress(100, "Done — opening report…");
         window.location.href = fin.status_url || created.status_url;
     } catch (err) {
         showError(err.message || "Something went wrong. Please try again.");
+        document.getElementById("progress-wrap").classList.add("hidden");
         setBusy(false);
     }
 });

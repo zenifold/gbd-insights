@@ -123,16 +123,28 @@ def template_csv(request):
     return response
 
 
+# Pipeline stages + the progress percent at which each begins (must track the
+# on_progress calls in pipeline.run_pipeline) — drives the status-page checklist.
+PIPELINE_STAGES = [
+    ("Read", 8),
+    ("Clean", 22),
+    ("Categorize", 40),
+    ("Emissions", 60),
+    ("Aggregate", 76),
+    ("Report", 88),
+]
+
+
 @require_GET
 def status_page(request, run_id):
     run = get_run_for(request.user, run_id)
-    return render(request, "status.html", {"run": run})
+    return render(request, "status.html", {"run": run, "stages": PIPELINE_STAGES})
 
 
 @require_GET
 def run_status_partial(request, run_id):
     run = get_run_for(request.user, run_id)
-    return render(request, "partials/_status.html", {"run": run})
+    return render(request, "partials/_status.html", {"run": run, "stages": PIPELINE_STAGES})
 
 
 @require_GET

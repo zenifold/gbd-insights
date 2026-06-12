@@ -53,7 +53,7 @@ def test_worker_marks_failed_on_pipeline_crash(demo_client, sample_csv_bytes, tm
     def boom(*args, **kwargs):
         raise RuntimeError("kaboom")
 
-    monkeypatch.setattr("runs.processing.run_pipeline", boom)
+    monkeypatch.setattr("runs.processing._get_pipeline", lambda: (boom, False))
 
     call_command("run_worker", "--once")
 

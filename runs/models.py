@@ -82,6 +82,11 @@ class AnalysisRun(models.Model):
         max_length=20, choices=RunStatus.choices, default=RunStatus.PENDING_UPLOAD
     )
 
+    # Live processing progress (0–100) + a human-readable stage label, updated by
+    # the pipeline as it runs so the status page can show a real progress bar.
+    progress = models.PositiveSmallIntegerField(default=0)
+    progress_message = models.CharField(max_length=120, blank=True, default="")
+
     # Source upload (lives in object storage, never on the web dyno).
     source_path = models.CharField(max_length=1024, blank=True, default="")
     source_filename = models.CharField(max_length=512, blank=True, default="")

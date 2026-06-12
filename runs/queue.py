@@ -45,6 +45,17 @@ def claim_next_run(worker_id: str) -> AnalysisRun | None:
         return AnalysisRun.objects.select_related("client").get(id=row[0])
 
 
+def set_progress(run_id, percent: int, message: str = "") -> None:
+    """Record live pipeline progress (0–100) for the status page to poll."""
+    percent = max(0, min(100, int(percent)))
+    with transaction.atomic():
+        with connection.cursor() as cursor:
+            set_service_scope(cursor)
+        AnalysisRun.objects.filter(id=run_id).update(
+            progress=percent, progress_message=message[:120], updated_at=timezone.now()
+        )
+
+
 def mark_done(run_id, artifact_path: str, summary: dict | None = None) -> None:
     with transaction.atomic():
         with connection.cursor() as cursor:
@@ -53,6 +64,8 @@ def mark_done(run_id, artifact_path: str, summary: dict | None = None) -> None:
             status=RunStatus.DONE,
             artifact_path=artifact_path,
             summary=summary or {},
+            progress=100,
+            progress_message="Complete",
             error_code="",
             error_message="",
             finished_at=timezone.now(),

@@ -115,6 +115,9 @@ STORAGES = {
     },
 }
 TAILWIND_CLI_USE_DAISY_UI = True
+# Tracked Tailwind input so the custom GBD brand theme lives in version control
+# (the default .django_tailwind_cli/source.css is gitignored).
+TAILWIND_CLI_SRC_CSS = str(BASE_DIR / "styles" / "source.css")
 
 # --------------------------------------------------------------------------
 # Auth — paths reachable without logging in (health, login, the local
@@ -153,6 +156,11 @@ MAX_XLSX_UNCOMPRESSED_BYTES = env.int("MAX_XLSX_UNCOMPRESSED_BYTES", default=102
 # Process runs inline in the web request (no separate worker) — for free
 # single-service hosting / demos. For scale, run `run_worker` and leave this off.
 PROCESS_INLINE = env.bool("PROCESS_INLINE", default=False)
+
+# Pluggable analysis pipeline. Dotted path to a callable with the signature
+# `fn(input_path, out_dir, *, on_progress=None) -> PipelineResult`. GBD can point
+# this at their own Python implementation without editing the app (see README).
+PIPELINE_CALLABLE = env("PIPELINE_CALLABLE", default="pipeline.run_pipeline")
 
 WORKER_POLL_INTERVAL = env.float("WORKER_POLL_INTERVAL", default=2.0)  # seconds
 WORKER_STALE_SECONDS = env.int("WORKER_STALE_SECONDS", default=900)  # reaper threshold

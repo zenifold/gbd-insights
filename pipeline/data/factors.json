@@ -1,8 +1,10 @@
 {
   "version": "placeholder-2026.06",
   "_comment": "PLACEHOLDER emission factors — REPLACE before production use. 'co2e_per_kg' values are representative cradle-to-retail midpoints in kg CO2e per kg of food, drawn from Poore & Nemecek (2018, Science) supplementary data. 'co2e_per_usd' values are rough spend-based (EEIO-style) fallbacks in kg CO2e per USD, used only when mass cannot be derived. These are to be superseded by GBD's Research Director / Jackie Bertoldo factors and the additional impact metrics (land, water, animal lives, health).",
+  "source": "Poore & Nemecek (2018), Science 360(6392) — placeholder cradle-to-retail midpoints; spend-based fallbacks are EEIO-style estimates.",
   "default_co2e_per_usd": 0.5,
   "categories": {
+    "plant_based": {"co2e_per_kg": 3.0,  "co2e_per_usd": 0.4},
     "beef":        {"co2e_per_kg": 60.0, "co2e_per_usd": 1.2},
     "lamb":        {"co2e_per_kg": 24.0, "co2e_per_usd": 1.2},
     "cheese":      {"co2e_per_kg": 21.0, "co2e_per_usd": 0.9},

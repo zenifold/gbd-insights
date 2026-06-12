@@ -13,6 +13,7 @@ import numpy as np
 import pandas as pd
 
 from .config import units as units_map
+from .config import volume_units as volume_units_map
 from .ingest import IngestResult
 
 
@@ -48,6 +49,7 @@ def clean(ingested: IngestResult) -> CleanResult:
     df = ingested.df.copy()
     rows_in = len(df)
     umap = units_map()
+    vmap = volume_units_map()
 
     df["product"] = df["product"].map(lambda v: (str(v).strip() if v is not None else ""))
     df["vendor"] = df["vendor"].map(lambda v: (str(v).strip() if v is not None else ""))
@@ -69,14 +71,26 @@ def clean(ingested: IngestResult) -> CleanResult:
 
     df["mass_kg"] = df.apply(_mass, axis=1)
 
+    # Volume in liters where unit is a known volume unit (converted to mass via a
+    # per-category density downstream in the emissions step).
+    def _volume(row):
+        q, u = row["quantity"], row["unit"]
+        if pd.notna(q) and u in vmap:
+            return q * vmap[u]
+        return np.nan
+
+    df["volume_l"] = df.apply(_volume, axis=1)
+
     # Drop rows with no product description (unusable).
     missing_product = df["product"].str.len() == 0
     dropped = int(missing_product.sum())
     df = df.loc[~missing_product].reset_index(drop=True)
 
-    unquantified = int(((df["spend"].isna()) & (df["mass_kg"].isna())).sum())
+    unquantified = int(
+        (df["spend"].isna() & df["mass_kg"].isna() & df["volume_l"].isna()).sum()
+    )
     unknown_units = sorted(
-        {u for u in df["unit"].dropna().unique() if u not in umap}
+        {u for u in df["unit"].dropna().unique() if u not in umap and u not in vmap}
     )
 
     warnings: list[str] = []

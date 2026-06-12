@@ -18,8 +18,8 @@ jobs:
       postgres:
         image: postgres:15
         env:
-          POSTGRES_USER: gbd_app
-          POSTGRES_PASSWORD: gbd_app_password
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres_password
           POSTGRES_DB: gbd_test
         options: >-
           --health-cmd pg_isready
@@ -74,6 +74,16 @@ jobs:
         BASIC_AUTH_PASS: testpass
       run: |
         uv run python manage.py collectstatic --noinput
+    
+    - name: Create non-superuser role for RLS testing
+      env:
+        DATABASE_URL: postgresql://postgres:postgres_password@localhost:5432/gbd_test
+      run: |
+        uv run python manage.py dbshell --database=default -- -c "
+          CREATE USER gbd_app WITH PASSWORD 'gbd_app_password' NOCREATEDB NOCREATEROLE;
+          GRANT ALL PRIVILEGES ON DATABASE gbd_test TO gbd_app;
+          ALTER DATABASE gbd_test OWNER TO gbd_app;
+        "
     
     - name: Run tests
       env:

@@ -47,6 +47,34 @@ jobs:
         uv sync --frozen
         uv pip install pytest pytest-django
     
+    - name: Build Tailwind CSS
+      env:
+        DATABASE_URL: postgresql://gbd_app:gbd_app_password@localhost:5432/gbd_test
+        DJANGO_SECRET_KEY: test-secret-key-for-ci
+        DJANGO_DEBUG: "True"
+        DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1
+        PUBLIC_BASE_URL: http://localhost:8000
+        STORAGE_BACKEND: local
+        STORAGE_BUCKET: test-bucket
+        BASIC_AUTH_USER: testuser
+        BASIC_AUTH_PASS: testpass
+      run: |
+        uv run python manage.py tailwind build
+    
+    - name: Collect static files
+      env:
+        DATABASE_URL: postgresql://gbd_app:gbd_app_password@localhost:5432/gbd_test
+        DJANGO_SECRET_KEY: test-secret-key-for-ci
+        DJANGO_DEBUG: "True"
+        DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1
+        PUBLIC_BASE_URL: http://localhost:8000
+        STORAGE_BACKEND: local
+        STORAGE_BUCKET: test-bucket
+        BASIC_AUTH_USER: testuser
+        BASIC_AUTH_PASS: testpass
+      run: |
+        uv run python manage.py collectstatic --noinput
+    
     - name: Run tests
       env:
         DATABASE_URL: postgresql://gbd_app:gbd_app_password@localhost:5432/gbd_test

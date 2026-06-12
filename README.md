@@ -115,14 +115,18 @@ the dev server + worker up (`uv run playwright install chromium` once).
 
 ## Deployment (Render)
 
-[`render.yaml`](render.yaml) defines two services — `web` (gunicorn) and `worker`
-(`run_worker`) — built from the **same** [`Dockerfile`](Dockerfile), differing
-only by start command. Migrations run via the web service `preDeployCommand`.
+[`render.yaml`](render.yaml) deploys **one free web service**. Uploads are
+processed **inline in the web request** (`PROCESS_INLINE=true`), so no paid
+background worker is needed — ideal for demos. For higher throughput, add a
+second `type: worker` service (`dockerCommand: python manage.py run_worker`) on a
+paid plan and set `PROCESS_INLINE=false`; both are built from the same
+[`Dockerfile`](Dockerfile).
 
 Set these env vars (see `.env.example`): `DJANGO_SECRET_KEY`,
-`DJANGO_ALLOWED_HOSTS`, `PUBLIC_BASE_URL`, `DATABASE_URL` (Supabase session mode),
-`STORAGE_BACKEND=supabase`, `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`,
-`BASIC_AUTH_USER`, `BASIC_AUTH_PASS`.
+`DJANGO_ALLOWED_HOSTS`, `PUBLIC_BASE_URL`, `DJANGO_CSRF_TRUSTED_ORIGINS`,
+`DATABASE_URL` (Supabase session mode), `STORAGE_BACKEND=supabase`,
+`SUPABASE_URL`, `SUPABASE_SERVICE_KEY`. Create the GBD admin after first deploy
+with `createsuperuser` (Render Shell).
 
 ### Supabase setup (cloud)
 1. **App DB role** — run [`db/supabase_setup.sql`](db/supabase_setup.sql) in the

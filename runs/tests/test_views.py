@@ -86,6 +86,25 @@ def test_status_page_shows_metrics_when_done(staff_client, demo_client):
     assert "No usable date column" in body
 
 
+def test_inline_processing_on_finalize(staff_client, demo_client, sample_csv_bytes, settings):
+    settings.PROCESS_INLINE = True  # free single-service mode
+    resp = staff_client.post(
+        "/runs",
+        {"client_id": str(demo_client.id), "filename": "sample.csv", "content_type": "text/csv"},
+    )
+    data = resp.json()
+    target = urlsplit(data["upload"]["url"])
+    staff_client.put(f"{target.path}?{target.query}", data=sample_csv_bytes, content_type="text/csv")
+
+    resp = staff_client.post(data["finalize_url"])
+    assert resp.json()["status"] == "DONE"  # processed inline, no worker
+
+    run = AnalysisRun.objects.get(id=data["run_id"])
+    assert run.status == "DONE"
+    assert run.artifact_path.endswith("report_bundle.zip")
+    assert run.summary["top_category"] == "Beef"
+
+
 def test_storage_upload_rejects_bad_signature(client):
     resp = client.put(
         "/_storage/upload?path=uploads/x&exp=9999999999&sig=bad",

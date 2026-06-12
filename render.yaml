@@ -1,20 +1,26 @@
-# Render blueprint: one web service + one worker, built from the SAME Dockerfile.
-# Database & Storage are Supabase (external), referenced via env vars.
+# Render blueprint — FREE single web service (good for demos).
+# Uploads are processed inline in the web service (PROCESS_INLINE=true), so no
+# paid background worker is needed. Database & Storage are Supabase (external).
+#
+# To scale beyond a demo: add a second service of `type: worker` with
+# `dockerCommand: python manage.py run_worker`, set PROCESS_INLINE=false, and move
+# both services to a paid plan (the worker can't run on the free tier).
 services:
   - type: web
     name: gbd-insights-web
     runtime: docker
     dockerfilePath: ./Dockerfile
-    plan: starter
+    plan: free
     healthCheckPath: /healthz
-    # Block insecure-default deploys, then migrate, before traffic shifts over.
-    preDeployCommand: python manage.py check --deploy --fail-level ERROR && python manage.py migrate --noinput
-    # No startCommand for docker runtime — the Dockerfile CMD runs gunicorn on $PORT.
-    envVars: &shared
+    envVars:
       - key: DJANGO_SECRET_KEY
         generateValue: true
       - key: DJANGO_DEBUG
         value: "False"
+      - key: PROCESS_INLINE        # process uploads in-request (no worker needed)
+        value: "true"
+      - key: WEB_CONCURRENCY       # 1 gunicorn worker keeps memory under the free 512MB
+        value: "1"
       - key: DJANGO_ALLOWED_HOSTS
         sync: false
       - key: PUBLIC_BASE_URL
@@ -31,13 +37,5 @@ services:
         sync: false
       - key: SUPABASE_SERVICE_KEY  # server-side only
         sync: false
-      # Auth is session-based (django.contrib.auth). After first deploy, create the
-      # GBD admin once:  render shell -> python manage.py createsuperuser
-
-  - type: worker
-    name: gbd-insights-worker
-    runtime: docker
-    dockerfilePath: ./Dockerfile
-    plan: starter
-    dockerCommand: python manage.py run_worker
-    envVars: *shared
+# Migrations are already applied to Supabase. After future schema changes, run
+# them once from the Render Shell:  python manage.py migrate

@@ -12,18 +12,13 @@ import logging
 import os
 import signal
 import socket
-import tempfile
 import time
-from pathlib import Path
 
 from django.conf import settings
 from django.core.management.base import BaseCommand
 
-from pipeline import run_pipeline
 from runs import queue
-from runs.models import RunStatus
-from runs.storage import get_storage
-from runs.validation import validate_upload
+from runs.processing import process_run
 
 log = logging.getLogger("runs.worker")
 
@@ -78,40 +73,8 @@ class Command(BaseCommand):
 
     def _process(self, run):
         self.stdout.write(f"Processing run {run.id} (attempt {run.attempts})…")
-        storage = get_storage()
-        workdir = Path(tempfile.mkdtemp(prefix=f"gbd-run-{run.id}-"))
-        try:
-            source = workdir / (Path(run.source_filename).name or "source")
-            storage.download_to(run.source_path, source)
-
-            result = validate_upload(source, run.source_filename, run.source_bytes or source.stat().st_size)
-            if not result.ok:
-                queue.mark_failed(run.id, result.error_code, result.message)
-                self.stdout.write(f"Run {run.id} failed validation: {result.error_code}")
-                return
-
-            outcome = run_pipeline(source, workdir / "out")
-            artifact_name = outcome.artifact_path.name
-            content_type = "application/zip" if artifact_name.endswith(".zip") else "application/pdf"
-            artifact_path = f"artifacts/{run.client.slug}/{run.id}/{artifact_name}"
-            storage.upload_file(artifact_path, outcome.artifact_path, content_type=content_type)
-            summary = dict(outcome.summary)
-            summary["warnings"] = outcome.warnings
-            queue.mark_done(run.id, artifact_path, summary=summary)
-            self.stdout.write(self.style.SUCCESS(f"Run {run.id} done -> {artifact_path}"))
-        except Exception:  # noqa: BLE001 — worker must never crash on a single run
-            log.exception("Run %s crashed", run.id)
-            queue.mark_failed(
-                run.id,
-                "pipeline_error",
-                "An unexpected error occurred while analyzing this file. "
-                "Our team has been notified; please try again or contact support.",
-            )
-        finally:
-            self._cleanup(workdir)
-
-    @staticmethod
-    def _cleanup(workdir: Path):
-        import shutil
-
-        shutil.rmtree(workdir, ignore_errors=True)
+        status = process_run(run)
+        if status == "DONE":
+            self.stdout.write(self.style.SUCCESS(f"Run {run.id} done"))
+        else:
+            self.stdout.write(f"Run {run.id} -> {status}")

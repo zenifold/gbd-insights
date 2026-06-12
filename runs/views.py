@@ -206,6 +206,19 @@ def finalize_run(request, run_id):
     run.source_bytes = stat.size
     run.status = RunStatus.QUEUED
     run.save(update_fields=["source_bytes", "status", "updated_at"])
+
+    # Free single-service hosting: process the run now instead of via a worker.
+    if settings.PROCESS_INLINE:
+        import os
+
+        from runs.processing import drain_queue
+
+        try:
+            drain_queue(f"web:{os.getpid()}")
+        except Exception:  # never fail finalize on a processing error
+            pass
+        run.refresh_from_db()
+
     return JsonResponse(
         {"status": run.status, "status_url": reverse("run_status_page", args=[run.id])}
     )

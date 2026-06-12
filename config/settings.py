@@ -150,6 +150,10 @@ MAX_XLSX_UNCOMPRESSED_BYTES = env.int("MAX_XLSX_UNCOMPRESSED_BYTES", default=102
 # --------------------------------------------------------------------------
 # Worker
 # --------------------------------------------------------------------------
+# Process runs inline in the web request (no separate worker) — for free
+# single-service hosting / demos. For scale, run `run_worker` and leave this off.
+PROCESS_INLINE = env.bool("PROCESS_INLINE", default=False)
+
 WORKER_POLL_INTERVAL = env.float("WORKER_POLL_INTERVAL", default=2.0)  # seconds
 WORKER_STALE_SECONDS = env.int("WORKER_STALE_SECONDS", default=900)  # reaper threshold
 WORKER_MAX_ATTEMPTS = env.int("WORKER_MAX_ATTEMPTS", default=3)

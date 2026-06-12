@@ -2,96 +2,83 @@
 {% block title %}Upload procurement data — GBD Insights{% endblock %}
 
 {% block content %}
-<div class="card bg-base-100 shadow-md">
-    <div class="card-body">
-        <h1 class="card-title text-2xl">Upload procurement data</h1>
-        <p class="opacity-70">Upload a purchasing spreadsheet (.csv or .xlsx, up to
-            {{ max_mb }} MB). We'll analyze it and produce a report.</p>
+<div class="mb-6">
+    <h1 class="text-2xl font-bold">Upload procurement data</h1>
+    <p class="opacity-60">Upload a purchasing spreadsheet and we'll analyze its environmental impact.</p>
+</div>
 
-        <div class="flex flex-wrap gap-2 mt-1">
-            <a href="{% url 'template_csv' %}" class="btn btn-sm btn-outline">⬇ Download CSV template</a>
-        </div>
-
-        {% if not is_staff and not client %}
-        <div class="alert alert-warning mt-4">
-            <span>Your account isn't linked to a client organization yet. Please contact GBD.</span>
-        </div>
-        {% endif %}
-        {% if is_staff and not clients %}
-        <div class="alert alert-warning mt-4">
-            <span>No clients exist yet. Create one in the <a class="link" href="/django-admin/runs/client/add/">admin</a>.</span>
-        </div>
-        {% endif %}
-
-        <form id="upload-form" class="mt-4 space-y-4" data-staff="{{ is_staff|yesno:'1,0' }}">
-            {% if is_staff %}
-            <label class="form-control w-full">
-                <span class="label-text mb-1">Client</span>
-                <select id="client" class="select select-bordered w-full" required
-                        {% if not clients %}disabled{% endif %}>
-                    <option value="" disabled selected>Select a client…</option>
-                    {% for c in clients %}
-                        <option value="{{ c.id }}">{{ c.name }}</option>
-                    {% endfor %}
-                </select>
-            </label>
-            {% else %}
-            <div class="text-sm">Uploading for <span class="font-semibold">{{ client.name }}</span>.</div>
-            {% endif %}
-
-            <label class="form-control w-full">
-                <span class="label-text mb-1">Procurement file</span>
-                <input id="file" type="file" accept=".csv,.xlsx"
-                       class="file-input file-input-bordered w-full" required>
-            </label>
-
-            <div id="error" class="alert alert-error hidden"><span></span></div>
-
-            <button id="submit" type="submit" class="btn btn-primary w-full"
-                    {% if is_staff and not clients or not is_staff and not client %}disabled{% endif %}>
-                <span id="submit-label">Upload &amp; analyze</span>
-                <span id="submit-spinner" class="loading loading-spinner loading-sm hidden"></span>
-            </button>
-        </form>
-
-        <div class="collapse collapse-arrow bg-base-200 mt-6">
-            <input type="checkbox" checked>
-            <div class="collapse-title font-medium">How should my file be formatted?</div>
-            <div class="collapse-content text-sm space-y-3">
-                <p>One row per purchased line item. The first row must be column headers.
-                    Column names are flexible — common synonyms are detected automatically.</p>
-
-                <div class="overflow-x-auto">
-                    <table class="table table-xs">
-                        <thead><tr><th>Column</th><th>Required?</th><th>Accepted names</th><th>Example</th></tr></thead>
-                        <tbody>
-                            <tr><td><b>product</b></td><td><span class="badge badge-error badge-sm">Required</span></td>
-                                <td>product, item, description</td><td>Ground Beef 80/20</td></tr>
-                            <tr><td><b>spend</b></td><td><span class="badge badge-warning badge-sm">One of spend / quantity</span></td>
-                                <td>spend, amount, cost, total, price</td><td>1240.50</td></tr>
-                            <tr><td><b>quantity</b></td><td><span class="badge badge-warning badge-sm">One of spend / quantity</span></td>
-                                <td>quantity, qty, units</td><td>200</td></tr>
-                            <tr><td><b>unit</b></td><td><span class="badge badge-ghost badge-sm">Recommended</span></td>
-                                <td>unit, uom, measure</td><td>lb</td></tr>
-                            <tr><td><b>vendor</b></td><td><span class="badge badge-ghost badge-sm">Optional</span></td>
-                                <td>vendor, supplier, distributor</td><td>US Foods</td></tr>
-                            <tr><td><b>date</b></td><td><span class="badge badge-ghost badge-sm">Optional</span></td>
-                                <td>date, order_date, period, month</td><td>2026-01-15</td></tr>
-                        </tbody>
-                    </table>
+<div class="grid md:grid-cols-5 gap-6">
+    <!-- Form -->
+    <div class="md:col-span-3">
+        <div class="card bg-base-100 shadow-sm border border-base-200 rounded-2xl">
+            <div class="card-body">
+                {% if not is_staff and not client %}
+                <div class="alert alert-warning">
+                    <span>Your account isn't linked to a client organization yet. Please contact GBD.</span>
                 </div>
+                {% endif %}
 
-                <ul class="list-disc list-inside space-y-1">
-                    <li>Provide <b>spend</b> (USD) and/or <b>quantity</b> + <b>unit</b>. With a mass unit
-                        (<code>lb, oz, kg, g, ton</code>) we estimate emissions from weight; otherwise we
-                        fall back to spend.</li>
-                    <li>Non-mass units like <code>case, each, can, block, bag, gal</code> are fine —
-                        those rows use the spend-based estimate.</li>
-                    <li>A <b>date</b> column unlocks the by-period breakdown in the report.</li>
-                    <li>Amounts may include <code>$</code> and commas (e.g. <code>$1,240.50</code>).</li>
+                <form id="upload-form" class="space-y-5" data-staff="{{ is_staff|yesno:'1,0' }}">
+                    {% if is_staff %}
+                    <label class="form-control w-full">
+                        <span class="label-text mb-1 font-medium">Client <span class="opacity-50 font-normal">(optional)</span></span>
+                        <input id="client-name" type="text" placeholder="e.g. Memorial Hospital — leave blank for ad hoc"
+                               class="input input-bordered w-full">
+                        <span class="label-text-alt opacity-50 mt-1">A new client is created automatically if it doesn't exist.</span>
+                    </label>
+
+                    <div class="form-control w-full">
+                        <span class="label-text mb-2 font-medium">Tags <span class="opacity-50 font-normal">(optional)</span></span>
+                        <div class="flex flex-wrap gap-2">
+                            {% for tag in tags %}
+                            <input type="checkbox" name="tags" value="{{ tag.slug }}"
+                                   class="btn btn-sm btn-outline" aria-label="{{ tag.name }}">
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% else %}
+                    <div class="rounded-lg bg-base-200 px-4 py-3 text-sm">
+                        Uploading for <span class="font-semibold">{{ client.name }}</span>.
+                    </div>
+                    {% endif %}
+
+                    <label class="form-control w-full">
+                        <span class="label-text mb-1 font-medium">Procurement file</span>
+                        <input id="file" type="file" accept=".csv,.xlsx"
+                               class="file-input file-input-bordered w-full" required>
+                        <span class="label-text-alt opacity-50 mt-1">.csv or .xlsx, up to {{ max_mb }} MB</span>
+                    </label>
+
+                    <div id="error" class="alert alert-error hidden"><span></span></div>
+
+                    <button id="submit" type="submit" class="btn btn-primary w-full"
+                            {% if not is_staff and not client %}disabled{% endif %}>
+                        <span id="submit-label">Upload &amp; analyze</span>
+                        <span id="submit-spinner" class="loading loading-spinner loading-sm hidden"></span>
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Format guide -->
+    <div class="md:col-span-2">
+        <div class="card bg-base-100 shadow-sm border border-base-200 rounded-2xl h-full">
+            <div class="card-body">
+                <div class="flex items-center justify-between">
+                    <h2 class="font-semibold">File format</h2>
+                    <a href="{% url 'template_csv' %}" class="btn btn-xs btn-outline">⬇ Template</a>
+                </div>
+                <p class="text-sm opacity-70">One row per line item; headers in row 1. Column names are flexible.</p>
+                <ul class="text-sm space-y-2 mt-1">
+                    <li><span class="badge badge-error badge-sm align-middle">Required</span> <b>product</b> — or <code>item</code>, <code>description</code></li>
+                    <li><span class="badge badge-warning badge-sm align-middle">One of</span> <b>spend</b> (<code>amount</code>, <code>cost</code>) and/or <b>quantity</b> + <b>unit</b></li>
+                    <li><span class="badge badge-ghost badge-sm align-middle">Optional</span> <b>vendor</b>, <b>date</b></li>
                 </ul>
-
-                <a href="{% url 'template_csv' %}" class="link link-primary">⬇ Download the CSV template to get started</a>
+                <div class="text-xs opacity-60 mt-2 space-y-1">
+                    <p>Mass units (<code>lb, oz, kg, g</code>) give weight-based estimates; others fall back to spend.</p>
+                    <p>A <b>date</b> column unlocks the by-period breakdown.</p>
+                </div>
             </div>
         </div>
     </div>
@@ -101,6 +88,7 @@
 const MAX_BYTES = {{ max_mb }} * 1024 * 1024;
 const ALLOWED = [".csv", ".xlsx"];
 const csrf = document.querySelector('meta[name="csrf-token"]').content;
+const IS_STAFF = document.getElementById("upload-form").dataset.staff === "1";
 
 function showError(msg) {
     const box = document.getElementById("error");
@@ -113,37 +101,34 @@ function setBusy(busy) {
     document.getElementById("submit-label").classList.toggle("hidden", busy);
 }
 
-const IS_STAFF = document.getElementById("upload-form").dataset.staff === "1";
-
 document.getElementById("upload-form").addEventListener("submit", async (e) => {
     e.preventDefault();
     document.getElementById("error").classList.add("hidden");
 
-    const clientEl = document.getElementById("client");
-    const clientId = clientEl ? clientEl.value : "";
     const file = document.getElementById("file").files[0];
     if (!file) return;
-    if (IS_STAFF && !clientId) return showError("Please choose a client.");
 
-    // Fast client-side pre-check (UX only; the worker validates authoritatively).
     const ext = file.name.slice(file.name.lastIndexOf(".")).toLowerCase();
     if (!ALLOWED.includes(ext)) return showError("Please choose a .csv or .xlsx file.");
     if (file.size > MAX_BYTES) return showError(`File is too large (limit ${MAX_BYTES / 1048576} MB).`);
 
     setBusy(true);
     try {
-        // Step 1: ask the server to create a run + mint a signed upload URL.
-        const params = {filename: file.name, content_type: file.type || ""};
-        if (IS_STAFF) params.client_id = clientId;
+        const params = new URLSearchParams({filename: file.name, content_type: file.type || ""});
+        if (IS_STAFF) {
+            const name = (document.getElementById("client-name").value || "").trim();
+            if (name) params.append("client_name", name);
+            document.querySelectorAll('input[name="tags"]:checked').forEach(cb => params.append("tags", cb.value));
+        }
+
         const createResp = await fetch("{% url 'create_run' %}", {
             method: "POST",
             headers: {"X-CSRFToken": csrf, "Content-Type": "application/x-www-form-urlencoded"},
-            body: new URLSearchParams(params),
+            body: params,
         });
         if (!createResp.ok) throw new Error(await createResp.text());
         const created = await createResp.json();
 
-        // Step 2: upload the file bytes DIRECTLY to storage via the signed URL.
         const putResp = await fetch(created.upload.url, {
             method: created.upload.method,
             headers: created.upload.headers || {},
@@ -151,10 +136,7 @@ document.getElementById("upload-form").addEventListener("submit", async (e) => {
         });
         if (!putResp.ok) throw new Error("Upload failed. Please try again.");
 
-        // Step 3: tell the server the upload landed; it queues the run.
-        const finResp = await fetch(created.finalize_url, {
-            method: "POST", headers: {"X-CSRFToken": csrf},
-        });
+        const finResp = await fetch(created.finalize_url, {method: "POST", headers: {"X-CSRFToken": csrf}});
         const fin = await finResp.json();
         if (!finResp.ok) throw new Error(fin.error || "Could not queue the analysis.");
 

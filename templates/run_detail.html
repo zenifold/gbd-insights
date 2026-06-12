@@ -33,6 +33,7 @@
             <table class="table table-sm">
                 <tbody>
                     <tr><th class="w-48">Client</th><td>{{ run.client.name }} <span class="opacity-50 text-xs">({{ run.client.slug }})</span></td></tr>
+                    <tr><th>Tags</th><td>{% for tag in run.tags.all %}<span class="badge badge-ghost badge-sm">{{ tag.name }}</span> {% empty %}<span class="opacity-50">—</span>{% endfor %}</td></tr>
                     <tr><th>Uploaded by</th><td>{{ run.created_by|default:"—" }}</td></tr>
                     <tr><th>Source file</th><td class="font-mono text-xs">{{ run.source_filename|default:"—" }}{% if run.source_bytes %} · {{ run.source_bytes|filesizeformat }}{% endif %}</td></tr>
                     <tr><th>Source path</th><td class="font-mono text-xs break-all">{{ run.source_path|default:"—" }}</td></tr>

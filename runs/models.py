@@ -43,6 +43,20 @@ class Profile(models.Model):
         return f"{self.user} → {self.client or 'GBD staff'}"
 
 
+class Tag(models.Model):
+    """A sector/category label (e.g. Healthcare, Academic, Corporate) for a run."""
+
+    slug = models.SlugField(max_length=50, unique=True)
+    name = models.CharField(max_length=50)
+
+    class Meta:
+        db_table = "runs_tag"
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name
+
+
 class RunStatus(models.TextChoices):
     PENDING_UPLOAD = "PENDING_UPLOAD", "Awaiting upload"
     QUEUED = "QUEUED", "Queued"
@@ -62,6 +76,7 @@ class AnalysisRun(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     client = models.ForeignKey(Client, on_delete=models.PROTECT, related_name="runs")
     created_by = models.CharField(max_length=150, blank=True, default="")
+    tags = models.ManyToManyField(Tag, blank=True, related_name="runs")
 
     status = models.CharField(
         max_length=20, choices=RunStatus.choices, default=RunStatus.PENDING_UPLOAD

@@ -40,6 +40,28 @@ def test_two_step_upload_flow(staff_client, demo_client, sample_csv_bytes):
     assert resp.json()["status"] == RunStatus.QUEUED
 
 
+def test_staff_creates_client_by_name_with_tags(staff_client):
+    from runs.models import Client
+
+    resp = staff_client.post(
+        "/runs",
+        {"filename": "x.csv", "content_type": "text/csv",
+         "client_name": "Memorial Hospital", "tags": ["healthcare", "corporate"]},
+    )
+    assert resp.status_code == 200, resp.content
+    run = AnalysisRun.objects.get(id=resp.json()["run_id"])
+    assert run.client.name == "Memorial Hospital"
+    assert run.client.slug == "memorial-hospital"
+    assert set(run.tags.values_list("slug", flat=True)) == {"healthcare", "corporate"}
+    assert Client.objects.filter(slug="memorial-hospital").exists()  # created on the fly
+
+
+def test_staff_blank_client_name_uses_ad_hoc(staff_client):
+    resp = staff_client.post("/runs", {"filename": "x.csv", "content_type": "text/csv"})
+    run = AnalysisRun.objects.get(id=resp.json()["run_id"])
+    assert run.client.slug == "ad-hoc"
+
+
 def test_create_run_rejects_bad_extension(staff_client, demo_client):
     resp = staff_client.post(
         "/runs", {"client_id": str(demo_client.id), "filename": "notes.txt"}
@@ -82,8 +104,8 @@ def test_status_page_shows_metrics_when_done(staff_client, demo_client):
                  "warnings": ["No usable date column was found."]},
     )
     body = staff_client.get(f"/runs/{run.id}/status").content.decode()
-    assert "Beef" in body and "Total emissions" in body
-    assert "No usable date column" in body
+    assert "Beef" in body and "CO₂e" in body  # metrics rendered
+    assert "No usable date column" in body     # caveat surfaced
 
 
 def test_inline_processing_on_finalize(staff_client, demo_client, sample_csv_bytes, settings):

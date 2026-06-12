@@ -14,10 +14,11 @@ from django.http import (
 )
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.utils.text import slugify
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST
 
-from runs.models import AnalysisRun, Client, RunStatus
+from runs.models import AnalysisRun, Client, RunStatus, Tag
 from runs.scoping import client_for, get_run_for, is_gbd_staff, visible_runs
 from runs.storage import get_storage
 from runs.storage.local import LocalStorage
@@ -38,8 +39,8 @@ def upload_page(request):
         {
             "max_mb": settings.MAX_UPLOAD_BYTES // (1024 * 1024),
             "is_staff": staff,
-            "clients": Client.objects.all() if staff else None,
             "client": client_for(request.user),
+            "tags": Tag.objects.all() if staff else None,
         },
     )
 
@@ -60,15 +61,15 @@ TEMPLATE_CSV = (
 @require_GET
 def dashboard(request):
     staff = is_gbd_staff(request.user)
-    runs = visible_runs(request.user)
+    runs = visible_runs(request.user).prefetch_related("tags")
 
     cur_status = request.GET.get("status", "")
     if cur_status in RunStatus.values:
         runs = runs.filter(status=cur_status)
 
-    cur_client = request.GET.get("client", "")
-    if staff and cur_client:
-        runs = runs.filter(client_id=cur_client)
+    cur_tag = request.GET.get("tag", "")
+    if cur_tag:
+        runs = runs.filter(tags__slug=cur_tag)
 
     query = (request.GET.get("q") or "").strip()
     if query:
@@ -82,9 +83,9 @@ def dashboard(request):
             "page": page,
             "statuses": RunStatus.choices,
             "is_staff": staff,
-            "clients": Client.objects.all() if staff else None,
+            "tags": Tag.objects.all(),
             "cur_status": cur_status,
-            "cur_client": cur_client,
+            "cur_tag": cur_tag,
             "query": query,
         },
     )
@@ -153,12 +154,21 @@ def create_run(request):
     filename = (request.POST.get("filename") or "").strip()
     content_type = request.POST.get("content_type", "")
 
-    # A client user can only upload for their own organization; GBD staff pick one.
+    # GBD staff name the client freely (created on the fly) and optionally tag it;
+    # a client user can only upload for their own organization.
+    tag_slugs: list[str] = []
     if is_gbd_staff(request.user):
+        client_name = (request.POST.get("client_name") or "").strip()
         client_id = request.POST.get("client_id")
-        if not client_id:
-            return HttpResponseBadRequest("Please choose a client.")
-        client = get_object_or_404(Client, id=client_id)
+        if client_name:
+            client, _ = Client.objects.get_or_create(
+                slug=slugify(client_name)[:255] or "client", defaults={"name": client_name}
+            )
+        elif client_id:
+            client = get_object_or_404(Client, id=client_id)
+        else:
+            client, _ = Client.objects.get_or_create(slug="ad-hoc", defaults={"name": "Ad hoc"})
+        tag_slugs = request.POST.getlist("tags")
     else:
         client = client_for(request.user)
         if client is None:
@@ -178,6 +188,8 @@ def create_run(request):
     )
     run.source_path = f"uploads/{client.slug}/{run.id}/source{ext}"
     run.save(update_fields=["source_path", "updated_at"])
+    if tag_slugs:
+        run.tags.set(Tag.objects.filter(slug__in=tag_slugs))
 
     signed = get_storage().create_signed_upload(run.source_path, content_type=content_type)
     return JsonResponse(
